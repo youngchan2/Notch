@@ -1,0 +1,10 @@
+.DS_Store
+.build/
+build/
+*.app/
+*.dSYM/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+!.env.example

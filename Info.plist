@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleExecutable</key><string>Notchwave</string>
+  <key>CFBundleIdentifier</key><string>app.notchwave.player</string>
+  <key>CFBundleName</key><string>Notchwave</string>
+  <key>CFBundleDisplayName</key><string>Notchwave</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>0.8.0</string>
+  <key>CFBundleVersion</key><string>18</string>
+  <key>LSMinimumSystemVersion</key><string>13.0</string>
+  <key>LSUIElement</key><true/>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>NSAppleEventsUsageDescription</key><string>Spotify의 재생 정보를 표시하고 음악을 제어하며, 알림을 누르면 Ghostty에서 해당 원격 tmux 작업을 엽니다.</string>
+  <key>NSCalendarsFullAccessUsageDescription</key><string>Mac 캘린더의 일정을 노치에 표시하고, 사용자가 저장한 새 일정과 수정 내용을 캘린더에 반영합니다.</string>
+  <key>NSCalendarsUsageDescription</key><string>Mac 캘린더의 일정을 노치에 표시하고, 사용자가 저장한 새 일정과 수정 내용을 캘린더에 반영합니다.</string>
+</dict></plist>
