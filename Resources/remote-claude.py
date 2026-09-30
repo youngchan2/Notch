@@ -21,6 +21,32 @@ EVENTS = ('Stop', 'PermissionRequest', 'Notification', 'PostToolUse',
 MARKER = ' --notchwave-remote-claude'
 
 
+def config_directory():
+    configured = os.environ.get('CLAUDE_CONFIG_DIR', '')
+    if not configured:
+        try:
+            output = subprocess.check_output(
+                ['tmux', 'show-environment', '-g', 'CLAUDE_CONFIG_DIR'],
+                text=True, timeout=2, stderr=subprocess.DEVNULL).strip()
+            if output.startswith('CLAUDE_CONFIG_DIR='):
+                configured = output.split('=', 1)[1]
+        except (OSError, subprocess.SubprocessError):
+            pass
+    return Path(configured).expanduser() if configured else Path.home() / '.claude'
+
+
+def settings_target(settings):
+    # Dotfile managers often link settings.json. Write the owned target atomically,
+    # preserving the link, instead of replacing it or silently using another profile.
+    target = settings.resolve()
+    if target != settings.absolute():
+        if Path.home().resolve() not in target.parents or not target.is_file():
+            raise ValueError('Claude settings link must point to a file inside your home')
+    if target.exists() and (not target.is_file() or target.stat().st_uid != os.getuid()):
+        raise ValueError('Claude settings must be a file owned by the current user')
+    return target
+
+
 def directory(path):
     if any(p.is_symlink() for p in (path, *path.parents)):
         raise ValueError('Notchwave directory is a symbolic link')
@@ -83,23 +109,25 @@ def updated_settings(original, command, enabled):
 
 
 def install(enabled=True):
-    config_dir = Path(os.environ.get('CLAUDE_CONFIG_DIR', str(Path.home() / '.claude')))
-    settings = config_dir / 'settings.json'
-    if settings.is_symlink():
-        raise ValueError('Claude settings are managed by a symbolic link')
-    before = settings.read_bytes() if settings.exists() else None
+    settings = config_directory() / 'settings.json'
+    target = settings_target(settings)
+    before = target.read_bytes() if target.exists() else None
+    if before is not None and len(before) > 1_000_000:
+        raise ValueError('Claude settings are too large')
     original = json.loads(before) if before else {}
     command = shlex.quote(sys.executable) + ' ' + shlex.quote(str(ROOT / 'remote-claude.py')) + MARKER
     result = updated_settings(original, command, enabled)
-    config_dir.mkdir(parents=True, exist_ok=True)
+    target.parent.mkdir(parents=True, exist_ok=True)
     directory(ROOT)
-    backup = ROOT / 'settings-before-notchwave.json'
+    backups = ROOT / 'settings-backups'
+    directory(backups)
+    backup = backups / (hashlib.sha256(str(target).encode()).hexdigest() + '.json')
     if before is not None and not backup.exists():
         atomic(backup, before)
-    if (settings.read_bytes() if settings.exists() else None) != before:
+    if settings_target(settings) != target or (target.read_bytes() if target.exists() else None) != before:
         raise ValueError('Claude settings changed during setup; retry')
-    mode = stat.S_IMODE(settings.stat().st_mode) if settings.exists() else 0o600
-    atomic(settings, (json.dumps(result, ensure_ascii=False, indent=2) + '\n').encode(), mode)
+    mode = stat.S_IMODE(target.stat().st_mode) if target.exists() else 0o600
+    atomic(target, (json.dumps(result, ensure_ascii=False, indent=2) + '\n').encode(), mode)
     print(json.dumps({'notchwave': 1, 'type': 'installed' if enabled else 'removed'}))
 
 
@@ -185,9 +213,29 @@ def emit(value):
     print(json.dumps(dict(value, notchwave=1), ensure_ascii=False), flush=True)
 
 
+def hooks_ready(settings):
+    try:
+        with settings.open('rb') as handle:
+            raw = handle.read(1_000_001)
+        if len(raw) > 1_000_000:
+            return False
+        value = json.loads(raw)
+        if value.get('disableAllHooks') is True:
+            return False
+        hooks = value.get('hooks', {})
+        return all(any(h.get('type') == 'command' and
+                       isinstance(h.get('command'), str) and
+                       h['command'].endswith(MARKER) and 'remote-claude.py' in h['command']
+                       for group in hooks.get(event, []) for h in group.get('hooks', []))
+                   for event in EVENTS)
+    except (OSError, ValueError, TypeError, AttributeError):
+        return False
+
+
 def watch():
     sent = {}
-    emit({'type': 'ready'})
+    settings = config_directory() / 'settings.json'
+    emit({'type': 'ready', 'hooks_ready': hooks_ready(settings)})
     heartbeat = time.monotonic()
     while True:
         events = [e for p in (ROOT / 'events').glob('*.json') if (e := read_event(p))]
@@ -200,7 +248,7 @@ def watch():
             emit({'type': 'event', 'event': wire})
         sent = {e['key']: e['id'] for e in events}
         if time.monotonic() - heartbeat >= 15:
-            emit({'type': 'heartbeat'})
+            emit({'type': 'heartbeat', 'hooks_ready': hooks_ready(settings)})
             heartbeat = time.monotonic()
         time.sleep(1)
 

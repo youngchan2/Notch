@@ -5,6 +5,13 @@ enum RemoteClaude {
     static var configURL: URL { AIHookLink.directory.appendingPathComponent("RemoteClaude.json") }
     static var seenURL: URL { AIHookLink.directory.appendingPathComponent("RemoteClaudeSeen.json") }
     static let helper = "\"$HOME/.local/share/notchwave/remote-claude.py\""
+    static func loginCommand(_ command: String) -> String {
+        "exec \"${SHELL:-/bin/sh}\" -lc " + ClaudeUsageLink.shellQuote(command)
+    }
+    static func connectionStatus(_ wire: [String: Any]) -> String? {
+        guard let type = wire["type"] as? String, type == "ready" || type == "heartbeat" else { return nil }
+        return wire["hooks_ready"] as? Bool == true ? "연결됨" : "알림 설정 확인 필요"
+    }
     static func validHost(_ value: String) -> Bool {
         value.count <= 100 && value.range(of: #"^[A-Za-z0-9][A-Za-z0-9._@-]*$"#, options: .regularExpression) != nil
     }
@@ -71,9 +78,9 @@ enum RemoteClaude {
             sys.argv=[str(path),'install']
             runpy.run_path(str(path),run_name='__main__')
             """#
-            data = try run(host: host, command: "python3 -c " + ClaudeUsageLink.shellQuote(bootstrap), input: source)
+            data = try run(host: host, command: loginCommand("python3 -c " + ClaudeUsageLink.shellQuote(bootstrap)), input: source)
         } else {
-            data = try run(host: host, command: "python3 " + helper + " remove")
+            data = try run(host: host, command: loginCommand("python3 " + helper + " remove"))
         }
         guard let response = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               response["type"] as? String == (enabled ? "installed" : "removed") else {
@@ -104,7 +111,7 @@ enum RemoteClaude {
     static func attachCommand(host: String, key: String) -> String? {
         guard validHost(host), validKey(key) else { return nil }
         return "/usr/bin/ssh -t -- " + ClaudeUsageLink.shellQuote(host) + " "
-            + ClaudeUsageLink.shellQuote("python3 " + helper + " attach " + key)
+            + ClaudeUsageLink.shellQuote(loginCommand("python3 " + helper + " attach " + key))
     }
     static func appleString(_ value: String) -> String {
         "\"" + value.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\""
@@ -153,7 +160,7 @@ enum RemoteClaude {
         guard !stopped, process == nil else { return }
         let child = Process(), output = Pipe()
         child.executableURL = URL(fileURLWithPath: "/usr/bin/ssh")
-        child.arguments = RemoteClaude.arguments(host: host, command: "python3 -u " + RemoteClaude.helper + " watch")
+        child.arguments = RemoteClaude.arguments(host: host, command: RemoteClaude.loginCommand("python3 -u " + RemoteClaude.helper + " watch"))
         child.standardOutput = output; child.standardError = FileHandle.nullDevice
         child.standardInput = FileHandle.nullDevice
         let frames = RemoteClaudeFrames()
@@ -165,7 +172,7 @@ enum RemoteClaude {
                     guard let self, !self.stopped, self.process === child,
                           let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any],
                           object["notchwave"] as? Int == 1 else { return }
-                    if object["type"] as? String == "ready" { self.status("연결됨") }
+                    if let value = RemoteClaude.connectionStatus(object) { self.status(value) }
                     if object["type"] as? String == "event", let event = object["event"] as? [String: Any] { self.receive(event) }
                 }
             }
@@ -240,6 +247,10 @@ final class RemoteClaudeFrames: @unchecked Sendable {
             }, status: { [weak self] value in self?.status(host, value) })
             connections[host] = connection; connection.start()
         }
+    }
+    func reconnect(host: String) {
+        connections.removeValue(forKey: host)?.stop()
+        reload()
     }
     func stop() { for connection in connections.values { connection.stop() }; connections.removeAll() }
 }

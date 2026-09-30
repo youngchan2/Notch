@@ -128,6 +128,12 @@ struct UsageView: View {
                 else {
                     Label(usage.demo ? "예시 연결" : (alerts.remoteStatus[selectedHost] ?? "연결 확인 중"), systemImage: "network")
                         .font(.system(size: 9)).foregroundStyle(.white.opacity(0.4))
+                    if !usage.demo, alerts.remoteStatus[selectedHost] == "알림 설정 확인 필요" {
+                        Button("알림 다시 연결") {
+                            alerts.applyRemoteChanges(additions: [selectedHost], removals: [])
+                        }.buttonStyle(.plain).font(.system(size: 9)).foregroundStyle(Color.accentColor)
+                            .disabled(alerts.remoteBusy)
+                    }
                 }
                 Spacer()
                 Text("위치별 로그인 계정 기준").font(.system(size: 9)).foregroundStyle(.white.opacity(0.35))

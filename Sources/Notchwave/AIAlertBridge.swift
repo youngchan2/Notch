@@ -387,7 +387,7 @@ enum AIHookLink {
                 message = "\(host) \(enabled ? "연결" : "연결 해제") 중…"
                 do {
                     try await Task.detached { try RemoteClaude.configure(host: host, enabled: enabled) }.value
-                    remote.reload()
+                    if enabled { remote.reconnect(host: host) } else { remote.reload() }
                     if !enabled { for event in queue.items where event.remoteHost == host { queue.dismiss(event.id) } }
                 } catch { failures.append(host) }
             }
@@ -462,7 +462,7 @@ enum AIHookLink {
             Task {
                 do {
                     _ = try await Task.detached { try RemoteClaude.run(host: host,
-                        command: "python3 " + RemoteClaude.helper + " check-attach " + key) }.value
+                        command: RemoteClaude.loginCommand("python3 " + RemoteClaude.helper + " check-attach " + key)) }.value
                     try RemoteClaude.openGhostty(host: host, key: key)
                     queue.acknowledge(event.id)
                     if event.kind == .completed { queue.dismiss(event.id) }

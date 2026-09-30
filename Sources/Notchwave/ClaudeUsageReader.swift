@@ -82,7 +82,7 @@ enum ClaudeUsageReader {
             // Match a normal SSH login: ~/.bash_profile / ~/.zprofile can select a different
             // Claude account directory than a bare noninteractive SSH command.
             let reader = "python3 -" + (force ? " --force" : "")
-            let command = "exec \"${SHELL:-/bin/sh}\" -lc " + ClaudeUsageLink.shellQuote(reader)
+            let command = RemoteClaude.loginCommand(reader)
             data = try RemoteClaude.run(host: host, command: command, input: Data(contentsOf: resource))
         } else {
             let process = Process(), output = Pipe()
