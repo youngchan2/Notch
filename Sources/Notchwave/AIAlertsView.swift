@@ -8,7 +8,7 @@ struct AIAlertsView: View {
             HStack {
                 Text("AI 알림").font(.system(size: 17, weight: .semibold))
                 Spacer()
-                Button("완료 알림 지우기") { alerts.clearCompleted() }
+                Button("지우기") { alerts.clearAll() }
                     .font(.system(size: 10)).buttonStyle(.plain).foregroundStyle(.white.opacity(0.5))
             }
             if !alerts.message.isEmpty {

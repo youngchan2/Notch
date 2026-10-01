@@ -180,9 +180,13 @@ struct AIAlertQueue {
         if idleCodexAlertID == id { idleCodexAlertID = nil }
     }
     mutating func clearIdleCodexAlert() { idleCodexAlertID = nil }
-    mutating func clearCompleted() {
-        items.removeAll { $0.kind == .completed }; waiting.removeAll { $0.kind == .completed }
-        if banner?.kind == .completed { banner = nil }
+    mutating func clearAll() {
+        items.removeAll()
+        waiting.removeAll()
+        banner = nil
+        idleCodexAlertID = nil
+        expiresAt = .distantPast
+        // Keep delivery history so polling cannot replay an already dismissed event.
     }
     mutating func remove(_ provider: AIProvider) {
         items.removeAll { $0.provider == provider }; waiting.removeAll { $0.provider == provider }
@@ -455,7 +459,7 @@ enum AIHookLink {
         refreshPresentation()
     }
     func dismiss(_ event: AIEvent) { queue.dismiss(event.id); refreshPresentation() }
-    func clearCompleted() { queue.clearCompleted(); refreshPresentation() }
+    func clearAll() { queue.clearAll(); refreshPresentation() }
     func open(_ event: AIEvent) {
         guard !demo else { dismiss(event); return }
         if let host = event.remoteHost, let key = event.remoteSessionKey {
