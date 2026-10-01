@@ -204,17 +204,33 @@ struct CompactChargingAlert: View {
     let geometry: IslandGeometry
     var snapshot = false
     var body: some View {
+        Group {
+            if geometry.hasNotch {
+                NotchAlertLayout(geometry: geometry) {
+                    Image(systemName: device.symbol).font(.system(size: 15, weight: .medium)).foregroundStyle(device.color)
+                } trailing: {
+                    ChargingRing(device: device, size: 24, snapshot: snapshot)
+                } detail: {
+                    HStack(spacing: 6) {
+                        Text(device.name).font(.system(size: 11, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
+                        Spacer(minLength: 4)
+                        Label("충전 중", systemImage: "bolt.fill").font(.system(size: 9, weight: .semibold)).foregroundStyle(device.color).fixedSize()
+                    }
+                }
+            } else { capsuleContent }
+        }.accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(device.name), 충전 중, \(device.percent.map { "\($0)퍼센트" } ?? "잔량 확인 중")")
+    }
+
+    private var capsuleContent: some View {
         HStack(spacing: 10) {
             Image(systemName: device.symbol).font(.system(size: 23, weight: .medium)).foregroundStyle(device.color)
             VStack(alignment: .leading, spacing: 3) {
                 Text(device.name).font(.system(size: 10, weight: .medium)).foregroundStyle(.white).lineLimit(1)
                 Label("충전 중", systemImage: "bolt.fill").font(.system(size: 10, weight: .semibold)).foregroundStyle(device.color)
             }.frame(maxWidth: .infinity, alignment: .leading)
-            if geometry.hasNotch { Spacer().frame(width: geometry.notchWidth) }
             ChargingRing(device: device, snapshot: snapshot)
         }.padding(.horizontal, 18).padding(.vertical, 8)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(device.name), 충전 중, \(device.percent.map { "\($0)퍼센트" } ?? "잔량 확인 중")")
     }
 }
 

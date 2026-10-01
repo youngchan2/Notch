@@ -93,10 +93,15 @@ struct IslandGeometry {
     var utilityContentHeight: CGFloat = 400
     var expandedHeight: CGFloat { topHeight + 38 + 160 }
     var idleWidth: CGFloat { hasNotch ? notchWidth : 112 }
-    var compactWidth: CGFloat { hasNotch ? notchWidth + 88 : 112 }
+    var compactWingWidth: CGFloat { hasNotch ? 36 : 44 }
+    var compactWidth: CGFloat { hasNotch ? notchWidth + compactWingWidth * 2 : 112 }
     // The progress line must sit below the physical camera cutout.
     var compactHeight: CGFloat { topHeight + (hasNotch ? 3 : 0) }
-    var alertWidth: CGFloat { hasNotch ? max(notchWidth + 250, 430) : 330 }
+    var alertWidth: CGFloat { hasNotch ? max(notchWidth + 112, 300) : 330 }
+    var alertWingWidth: CGFloat { (alertWidth - notchWidth) / 2 }
+    // Put the title below the camera instead of squeezing it into either wing.
+    var notchAlertDetailHeight: CGFloat { 26 }
+    var notchAlertHeight: CGFloat { topHeight + notchAlertDetailHeight }
     func expandedSize(for tab: IslandTab) -> CGSize {
         let content = tab == .calendar ? calendarContentHeight : (tab == .spotify ? 160 : utilityContentHeight)
         return CGSize(width: tab == .calendar ? calendarWidth : expandedWidth, height: topHeight + 38 + content)
@@ -142,8 +147,8 @@ struct IslandGeometry {
     }
     func hitRect(expanded: Bool, active: Bool, tab: IslandTab = .spotify, alert: Bool = false, chargingAlert: Bool = false, aiAlertEmphasized: Bool = false) -> NSRect {
         let size = expandedSize(for: tab)
-        let width = expanded ? size.width : (alert ? alertWidth + (aiAlertEmphasized ? 24 : 0) : (active ? compactWidth : idleWidth))
-        let height = expanded ? size.height : ((chargingAlert || aiAlertEmphasized) ? max(56, topHeight) : (active && !alert ? compactHeight : topHeight))
+        let width = expanded ? size.width : (alert ? alertWidth + (aiAlertEmphasized && !hasNotch ? 24 : 0) : (active ? compactWidth : idleWidth))
+        let height = expanded ? size.height : (hasNotch && alert ? notchAlertHeight : ((chargingAlert || aiAlertEmphasized) ? max(56, topHeight) : (active && !alert ? compactHeight : topHeight)))
         return NSRect(x: centerX - width / 2, y: topY - height, width: width, height: height)
     }
     var activationRect: NSRect {

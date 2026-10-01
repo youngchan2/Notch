@@ -446,10 +446,11 @@ enum AIHookLink {
         queue.tick(now: now, paused: bannerPaused)
         refreshPresentation(now: now)
     }
-    func preview(permission: Bool = false) {
+    func preview(permission: Bool = false, conversationTitle: String? = nil) {
         let event = AIEvent(provider: permission ? .claude : .codex, session: "notchwave-preview-\(permission)",
             kind: permission ? .permission : .completed, project: "미리보기", tool: permission ? "파일 변경" : "",
-            createdAt: Date(), targetBundleID: permission ? AIProvider.claude.bundleID : AIProvider.codex.bundleID, preview: true)
+            createdAt: Date(), targetBundleID: permission ? AIProvider.claude.bundleID : AIProvider.codex.bundleID, preview: true,
+            conversationTitle: conversationTitle)
         queue.receive(event, keepCodexVisible: !musicPlaying)
         refreshPresentation()
     }

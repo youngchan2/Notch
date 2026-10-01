@@ -316,12 +316,24 @@ struct PreviewBoard: View {
     @StateObject private var alerts = AIAlertBridge(demo: true)
     var snapshot = false
 
-    @MainActor init(player: SpotifyBridge, snapshot: Bool = false, glass: Bool = false, tab: IslandTab = .battery, compact: Bool = false) {
+    @MainActor init(player: SpotifyBridge, snapshot: Bool = false, glass: Bool = false, tab: IslandTab = .battery, compact: Bool = false, alert: String? = nil) {
         self.player = player; self.snapshot = snapshot
         _calendar = StateObject(wrappedValue: CalendarBridge(demo: true))
         let state = IslandState(expanded: !compact, tab: tab)
         state.geometry = IslandGeometry(hasNotch: !glass)
         _state = StateObject(wrappedValue: state)
+        if let alert {
+            state.expanded = false
+            let demoAlerts = AIAlertBridge(demo: true)
+            let demoBattery = BatteryBridge(demo: true)
+            if alert == "completed" || alert == "permission" {
+                demoAlerts.preview(permission: alert == "permission", conversationTitle: "노치 알림 디자인과 긴 대화 제목 표시 개선 작업")
+            } else if alert == "low" || alert == "charging" {
+                demoBattery.previewAlert(charging: alert == "charging")
+            }
+            _alerts = StateObject(wrappedValue: demoAlerts)
+            _battery = StateObject(wrappedValue: demoBattery)
+        }
     }
 
     var body: some View {
@@ -409,7 +421,9 @@ struct PreviewBoard: View {
 @MainActor func renderPreview(to path: String) {
     let player = SpotifyBridge()
     player.setDemo(true)
-    let renderer = ImageRenderer(content: PreviewBoard(player: player, snapshot: true, glass: CommandLine.arguments.contains("--glass"), tab: CommandLine.arguments.contains("--usage") ? .usage : .battery, compact: CommandLine.arguments.contains("--compact")))
+    let args = CommandLine.arguments
+    let alert = args.firstIndex(of: "--alert-preview").flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil }
+    let renderer = ImageRenderer(content: PreviewBoard(player: player, snapshot: true, glass: args.contains("--glass"), tab: args.contains("--usage") ? .usage : .battery, compact: args.contains("--compact"), alert: alert))
     renderer.scale = 2
     renderer.proposedSize = ProposedViewSize(width: 880, height: 738)
     guard let image = renderer.cgImage else { fatalError("Cannot render preview") }

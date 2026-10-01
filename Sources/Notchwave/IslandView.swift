@@ -49,6 +49,25 @@ struct NotchShape: Shape {
     }
 }
 
+/// Fixed, equal wings keep the physical cutout centered even with long labels.
+struct NotchAlertLayout<Leading: View, Trailing: View, Detail: View>: View {
+    let geometry: IslandGeometry
+    @ViewBuilder var leading: () -> Leading
+    @ViewBuilder var trailing: () -> Trailing
+    @ViewBuilder var detail: () -> Detail
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                leading().padding(.horizontal, 8).frame(width: geometry.alertWingWidth)
+                Color.clear.frame(width: geometry.notchWidth)
+                trailing().padding(.horizontal, 8).frame(width: geometry.alertWingWidth).offset(x: -3)
+            }.frame(height: geometry.topHeight)
+            detail().padding(.horizontal, 20).frame(height: geometry.notchAlertDetailHeight)
+        }.frame(width: geometry.alertWidth, height: geometry.notchAlertHeight)
+    }
+}
+
 struct DemoArtwork: View {
     var body: some View {
         GeometryReader { proxy in
@@ -204,9 +223,10 @@ struct CompactPlayback: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
-                Cover(player: player, size: min(20, geometry.topHeight - 6)).frame(width: 44)
+                Cover(player: player, size: min(geometry.hasNotch ? 18 : 20, geometry.topHeight - 6))
+                    .offset(x: geometry.hasNotch ? 3 : 0).frame(width: geometry.compactWingWidth)
                 Spacer(minLength: geometry.hasNotch ? geometry.notchWidth : 0)
-                Equalizer(playing: track.playing).frame(width: 44)
+                Equalizer(playing: track.playing).offset(x: geometry.hasNotch ? -3 : 0).frame(width: geometry.compactWingWidth)
             }.frame(height: geometry.topHeight)
             if geometry.hasNotch { progress.frame(height: 3).padding(.horizontal, 20) }
         }
@@ -257,15 +277,21 @@ struct IslandView: View {
         .frame(width: width, height: height, alignment: .top)
         .modifier(IslandChrome(hasNotch: geometry.hasNotch, expanded: state.expanded, snapshot: snapshot))
         .overlay {
-            RoundedRectangle(cornerRadius: state.expanded ? 27 : 18)
-                .strokeBorder(Color.accentColor.opacity(emphasized ? 0.55 : 0), lineWidth: 1.2)
-                .allowsHitTesting(false)
+            if geometry.hasNotch {
+                NotchShape(radius: state.expanded ? 27 : 11)
+                    .stroke(Color.accentColor.opacity(emphasized ? 0.55 : 0), lineWidth: 1.2)
+                    .allowsHitTesting(false)
+            } else {
+                RoundedRectangle(cornerRadius: state.expanded ? 27 : 18)
+                    .strokeBorder(Color.accentColor.opacity(emphasized ? 0.55 : 0), lineWidth: 1.2)
+                    .allowsHitTesting(false)
+            }
         }
         .contentShape(RoundedRectangle(cornerRadius: state.expanded ? 27 : 18))
         .overlay(alignment: .trailing) {
             if !state.expanded && !hasBanner && alerts.pendingCount > 0 {
                 Text("\(alerts.pendingCount)").font(.system(size: 8, weight: .bold)).foregroundStyle(.black)
-                    .frame(minWidth: 13, minHeight: 13).background(Color.accentColor, in: Circle()).padding(.trailing, 3)
+                    .frame(minWidth: 13, minHeight: 13).background(Color.accentColor, in: Circle()).padding(.trailing, geometry.hasNotch ? 12 : 3)
                     .allowsHitTesting(false).accessibilityLabel("승인 대기 \(alerts.pendingCount)개")
             }
         }
@@ -383,16 +409,31 @@ struct IslandView: View {
         switch state.tab { case .spotify: return player.demo; case .calendar: return calendar.demo; case .battery: return battery.demo; case .usage: return usage.demo }
     }
 
-    private func compactAlert(_ device: DeviceBattery, geometry: IslandGeometry) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: device.symbol).font(.system(size: 16)).foregroundStyle(device.color)
-            Text(device.name).font(.system(size: 10, weight: .medium)).lineLimit(1)
-            if geometry.hasNotch { Spacer().frame(width: geometry.notchWidth) }
-            else { Spacer(minLength: 4) }
-            Text("\(device.percent ?? 0)%").font(.system(size: 11, weight: .semibold)).foregroundStyle(device.color)
-            BatteryGlyph(device: device)
-        }.padding(.horizontal, 18).frame(width: geometry.alertWidth).foregroundStyle(.white)
-            .accessibilityLabel("배터리 부족, \(device.name), \(device.percent ?? 0)퍼센트")
+    @ViewBuilder private func compactAlert(_ device: DeviceBattery, geometry: IslandGeometry) -> some View {
+        if geometry.hasNotch {
+            NotchAlertLayout(geometry: geometry) {
+                Image(systemName: device.symbol).font(.system(size: 15)).foregroundStyle(device.color)
+            } trailing: {
+                Text("\(device.percent ?? 0)%").font(.system(size: 11, weight: .semibold)).foregroundStyle(device.color)
+            } detail: {
+                HStack(spacing: 6) {
+                    Text(device.name).font(.system(size: 11, weight: .semibold)).lineLimit(1)
+                    Spacer(minLength: 4)
+                    Text("배터리 부족").font(.system(size: 9)).foregroundStyle(device.color).fixedSize()
+                }
+            }.foregroundStyle(.white)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("배터리 부족, \(device.name), \(device.percent ?? 0)퍼센트")
+        } else {
+            HStack(spacing: 8) {
+                Image(systemName: device.symbol).font(.system(size: 16)).foregroundStyle(device.color)
+                Text(device.name).font(.system(size: 10, weight: .medium)).lineLimit(1)
+                Spacer(minLength: 4)
+                Text("\(device.percent ?? 0)%").font(.system(size: 11, weight: .semibold)).foregroundStyle(device.color)
+                BatteryGlyph(device: device)
+            }.padding(.horizontal, 18).frame(width: geometry.alertWidth).foregroundStyle(.white)
+                .accessibilityLabel("배터리 부족, \(device.name), \(device.percent ?? 0)퍼센트")
+        }
     }
 
     private var tabBar: some View {

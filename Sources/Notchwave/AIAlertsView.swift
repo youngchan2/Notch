@@ -62,6 +62,36 @@ struct CompactAIAlert: View {
     let geometry: IslandGeometry
     var emphasized = false
     var body: some View {
+        Group {
+            if geometry.hasNotch { notchContent }
+            else { capsuleContent }
+        }.foregroundStyle(.white)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(event.provider.title), \(event.conversationLabel), \(event.title), 클릭하여 \(event.openingAction)")
+            .help(event.conversationLabel + " · " + event.openingAction)
+    }
+
+    private var notchContent: some View {
+        NotchAlertLayout(geometry: geometry) {
+            Image(systemName: event.kind == .permission ? "hand.raised.fill" : "checkmark.circle.fill")
+                .font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.accentColor)
+        } trailing: {
+            Text(event.kind == .permission ? "승인 대기" : "응답 완료")
+                .font(.system(size: 9, weight: .semibold)).lineLimit(1)
+                .foregroundStyle(emphasized ? Color.accentColor : .white)
+        } detail: {
+            HStack(spacing: 6) {
+                Text(event.provider == .claude ? "Claude" : "Codex")
+                    .font(.system(size: 9, weight: .medium)).foregroundStyle(.white.opacity(0.55)).fixedSize()
+                Text(event.conversationLabel).font(.system(size: 11, weight: .semibold))
+                    .lineLimit(1).truncationMode(.tail)
+                Spacer(minLength: 0)
+                Image(systemName: "arrow.up.forward").font(.system(size: 9)).foregroundStyle(.white.opacity(0.6))
+            }
+        }
+    }
+
+    private var capsuleContent: some View {
         HStack(spacing: 8) {
             Image(systemName: event.kind == .permission ? "hand.raised.fill" : "checkmark.circle.fill")
                 .font(.system(size: emphasized ? 28 : 14, weight: .semibold)).foregroundStyle(Color.accentColor)
@@ -72,15 +102,12 @@ struct CompactAIAlert: View {
                 }
                 Text(event.conversationLabel).font(.system(size: emphasized ? 12 : 11, weight: .semibold))
                     .lineLimit(emphasized ? 2 : 1).truncationMode(.tail)
-            }.frame(maxWidth: geometry.hasNotch ? 85 : 160, alignment: .leading)
-            Spacer(minLength: geometry.hasNotch ? geometry.notchWidth : 4)
+            }.frame(maxWidth: 160, alignment: .leading)
+            Spacer(minLength: 4)
             Text(event.kind == .permission ? "승인 대기" : "응답 완료")
                 .font(.system(size: emphasized ? 13 : 11, weight: .semibold)).lineLimit(1)
                 .foregroundStyle(emphasized ? Color.accentColor : .white)
             Image(systemName: "arrow.up.forward").font(.system(size: emphasized ? 11 : 9)).foregroundStyle(.white.opacity(0.7))
-        }.padding(.horizontal, 18).foregroundStyle(.white)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(event.provider.title), \(event.conversationLabel), \(event.title), 클릭하여 \(event.openingAction)")
-            .help(event.conversationLabel + " · " + event.openingAction)
+        }.padding(.horizontal, 18)
     }
 }
