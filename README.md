@@ -1,5 +1,7 @@
 # Notchwave
 
+<img src="docs/images/app-icon.png" alt="Notchwave 앱 아이콘: 짙은 바탕의 민트색 캡슐과 파형" width="112" />
+
 **음악, 일정, 배터리와 AI 작업 상태를 Mac의 화면 상단에서.**
 
 Notchwave는 MacBook의 노치를 작은 대시보드로 활용하는 macOS 앱입니다. 외장 모니터나 Mac mini처럼 노치가 없는 환경에서는 메뉴 막대 중앙의 반투명 캡슐로 표시됩니다. 마우스를 올리거나 클릭하면 필요한 정보와 컨트롤이 펼쳐집니다.
@@ -98,6 +100,17 @@ open build/Notchwave.app
 
 앱은 Dock 아이콘 없이 메뉴 막대의 파형 아이콘으로 동작합니다. 앱 안에서 사용할 기능을 연결하세요.
 
+일상적으로 사용할 앱은 `~/Applications/Notchwave.app` 한 곳에 두는 것을 권장합니다. 앱을 종료한 뒤 아래처럼 같은 경로에 빌드하면 업데이트마다 별도 사본을 만들지 않습니다.
+
+```sh
+bash build.sh "$HOME/Applications/Notchwave.app"
+open "$HOME/Applications/Notchwave.app"
+```
+
+빌드 캐시와 아이콘의 중간 파일은 소스 폴더의 `.build/`에 모이며 Git에는 포함하지 않습니다. 기존 AI 알림을 연결한 뒤 앱 위치를 바꾼 경우에는 새 위치의 앱에서 알림 연결을 다시 설정해야 합니다.
+
+**로그인 시 자동 실행:** macOS의 **시스템 설정 → 일반 → 로그인 항목 및 확장 프로그램**에서 로그인 시 열기 목록에 `~/Applications/Notchwave.app`을 추가하세요. 이 설정은 재시동 후 사용자 계정에 로그인할 때 앱을 시작합니다. [Apple 안내](https://support.apple.com/ko-kr/guide/mac-help/mh15189/mac)
+
 | 연결 대상 | 준비 사항 |
 | --- | --- |
 | Spotify | Mac용 Spotify 설치, macOS 자동화 권한 허용 |
@@ -134,6 +147,7 @@ build/Notchwave.app/Contents/MacOS/Notchwave --render /tmp/notchwave-claude.png 
 | --- | --- |
 | `Sources/Notchwave/` | SwiftUI 화면, 패널 배치, 서비스 연결과 자체 검사 |
 | `Resources/` | 원격 Claude 알림 전달기와 사용량 조회 도구 |
+| `scripts/make-icon.swift` | macOS 앱 아이콘을 크기별로 그리는 벡터 원본 |
 | `Tests/` | Python 도구 검사 |
 | `docs/images/` | README 디자인 미리보기 |
 | [docs/guide.md](docs/guide.md) | 기능별 사용법, 연결·알림 동작, 호환성 설명 |
