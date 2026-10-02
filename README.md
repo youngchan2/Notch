@@ -133,8 +133,7 @@ NOTCHWAVE_SDK_PATH=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk bash 
 
 ```sh
 # 동작 검사
-build/Notchwave.app/Contents/MacOS/Notchwave --self-test
-python3 -B -m unittest discover -s Tests -v
+bash scripts/test.sh
 
 # 화면 배치 진단
 build/Notchwave.app/Contents/MacOS/Notchwave --diagnostics
@@ -146,12 +145,16 @@ build/Notchwave.app/Contents/MacOS/Notchwave --render /tmp/notchwave-claude.png 
 
 | 경로 | 내용 |
 | --- | --- |
-| `Sources/Notchwave/` | SwiftUI 화면, 패널 배치, 서비스 연결과 자체 검사 |
+| `Sources/Notchwave/` | SwiftUI 화면, 패널 배치와 서비스 연결 |
 | `Resources/` | 원격 Claude 알림 전달기와 사용량 조회 도구 |
 | `scripts/make-icon.swift` | macOS 앱 아이콘을 크기별로 그리는 벡터 원본 |
-| `Tests/` | Python 도구 검사 |
+| `Tests/Swift/` | 재생·캘린더·알림·사용량 등의 Swift 동작 검사 |
+| `Tests/test_*.py` | 원격 Claude와 사용량 도구 검사 |
+| `scripts/test.sh` | Swift와 Python 검사를 함께 실행하는 진입점 |
 | `docs/images/` | README 디자인 미리보기 |
 | [docs/guide.md](docs/guide.md) | 기능별 사용법, 연결·알림 동작, 호환성 설명 |
+
+검증 코드는 설치 앱에 포함하지 않습니다. `scripts/test.sh`는 `.build/NotchwaveChecks`를 만들어 검사하며, 빌드와 같은 `NOTCHWAVE_SDK_PATH` 설정을 사용할 수 있습니다. `.build/`는 다시 생성할 수 있는 캐시·중간 산출물이므로 필요할 때 삭제해도 됩니다. README에 쓰는 이미지는 `docs/images/`에 보관하고, 일회성 화면 검증 이미지는 임시 폴더에 저장합니다.
 
 ## 지원 범위
 

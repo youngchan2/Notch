@@ -386,6 +386,7 @@ struct PreviewBoard: View {
     }
 }
 
+#if !NOTCHWAVE_CHECKS
 @main enum NotchwaveApp {
     @MainActor static func main() {
         let args = CommandLine.arguments
@@ -407,7 +408,10 @@ struct PreviewBoard: View {
             return
         }
         if args.contains("--capture-claude-usage") { ClaudeUsageLink.runHelper(); return }
-        if args.contains("--self-test") { runChecks(); return }
+        if args.contains("--self-test") {
+            fputs("Run checks from the source folder with: bash scripts/test.sh\n", stderr)
+            exit(64)
+        }
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
         if let index = args.firstIndex(of: "--render"), args.count > index + 1 {
@@ -427,6 +431,7 @@ struct PreviewBoard: View {
         withExtendedLifetime(delegate) { app.run() }
     }
 }
+#endif
 
 @MainActor func renderPreview(to path: String) {
     let player = SpotifyBridge()

@@ -93,7 +93,7 @@ AI 알림 미리보기 메뉴는 표시하지 않습니다. 보관함에 완료 
 
 명령줄로 등록할 때는 프로젝트에서 `build/Notchwave.app/Contents/MacOS/Notchwave --link-remote-claude studio,research`를 실행합니다. 연결 목록은 Mac의 `~/Library/Application Support/Notchwave/AI Alerts/RemoteClaude.json`에 저장합니다. 원격 전달기는 앱 리소스에 포함된 `Resources/remote-claude.py`입니다.
 
-검증: `python3 -B -m unittest discover -s Tests -v`와 앱의 `--self-test`를 실행합니다. [Ghostty 자동화](https://ghostty.org/docs/features/applescript), [tmux](https://man.openbsd.org/tmux).
+검증: 프로젝트에서 `bash scripts/test.sh`를 실행하면 Swift와 Python 검사를 함께 실행합니다. [Ghostty 자동화](https://ghostty.org/docs/features/applescript), [tmux](https://man.openbsd.org/tmux).
 
 ## AI 사용량
 
@@ -133,7 +133,7 @@ Apple Silicon Mac과 macOS 26 SDK를 포함한 Command Line Tools가 필요합�
 
 ```sh
 bash build.sh
-build/Notchwave.app/Contents/MacOS/Notchwave --self-test
+bash scripts/test.sh
 build/Notchwave.app/Contents/MacOS/Notchwave --diagnostics
 build/Notchwave.app/Contents/MacOS/Notchwave --render /absolute/path/preview.png --glass
 ```
