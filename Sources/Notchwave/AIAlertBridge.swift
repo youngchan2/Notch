@@ -113,6 +113,7 @@ struct AIAlertQueue {
     private var latest: [String: Date] = [:]
     private var idleCodexAlertID: UUID?
     var pendingCount: Int { items.filter { $0.kind == .permission }.count }
+    var storedCount: Int { items.count }
     var idleCodexAlert: AIEvent? { items.first { $0.id == idleCodexAlertID } }
 
     mutating func receive(_ event: AIEvent, now: Date = Date(), keepCodexVisible: Bool = false) {
@@ -325,6 +326,7 @@ enum AIHookLink {
     init(demo: Bool = false) { self.demo = demo }
     var banner: AIEvent? { queue.banner ?? (musicPlaying ? nil : queue.idleCodexAlert) }
     var pendingCount: Int { queue.pendingCount }
+    var storedCount: Int { queue.storedCount }
     var items: [AIEvent] { queue.items }
 
     func start() {

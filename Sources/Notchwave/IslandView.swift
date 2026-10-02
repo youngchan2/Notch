@@ -105,15 +105,16 @@ struct Cover: View {
 
 struct Equalizer: View {
     var playing: Bool
+    var compact = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 12, paused: !playing || reduceMotion)) { context in
-            HStack(alignment: .center, spacing: 2.5) {
+            HStack(alignment: .center, spacing: compact ? 1 : 2.5) {
                 ForEach(0..<4) { index in
                     Capsule().fill(Color.accentColor.opacity(playing ? 1 : 0.45))
-                        .frame(width: 2.5, height: barHeight(index, at: context.date))
+                        .frame(width: compact ? 1 : 2.5, height: barHeight(index, at: context.date))
                 }
-            }.frame(width: 22, height: 20)
+            }.frame(width: compact ? 7 : 22, height: 20)
         }
         .accessibilityLabel(playing ? "재생 중" : "일시정지")
     }
@@ -219,6 +220,7 @@ struct CompactPlayback: View {
     @ObservedObject var player: SpotifyBridge
     let track: Track
     let geometry: IslandGeometry
+    var notificationCount = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -226,7 +228,11 @@ struct CompactPlayback: View {
                 Cover(player: player, size: min(geometry.hasNotch ? 18 : 20, geometry.topHeight - 6))
                     .offset(x: geometry.hasNotch ? 3 : 0).frame(width: geometry.compactWingWidth)
                 Spacer(minLength: geometry.hasNotch ? geometry.notchWidth : 0)
-                Equalizer(playing: track.playing).offset(x: geometry.hasNotch ? -3 : 0).frame(width: geometry.compactWingWidth)
+                HStack(spacing: geometry.hasNotch ? 2 : 3) {
+                    Equalizer(playing: track.playing, compact: geometry.hasNotch && notificationCount > 0)
+                    if notificationCount > 0 { AIAlertCountBadge(count: notificationCount) }
+                }.offset(x: geometry.hasNotch ? (notificationCount > 0 ? -5 : -3) : 0)
+                    .frame(width: geometry.compactWingWidth)
             }.frame(height: geometry.topHeight)
             if geometry.hasNotch { progress.frame(height: 3).padding(.horizontal, 20) }
         }
@@ -261,7 +267,7 @@ struct IslandView: View {
     var body: some View {
         let geometry = state.geometry
         let active = player.track?.playing == true
-        let compactActive = active || alerts.pendingCount > 0
+        let compactActive = active || alerts.storedCount > 0
         let hasBanner = battery.alert != nil || alerts.banner != nil
         let emphasized = battery.alert == nil && alerts.banner != nil && alerts.isEmphasized
         let size = geometry.hitRect(expanded: state.expanded, active: compactActive, tab: state.layoutTab,
@@ -289,10 +295,9 @@ struct IslandView: View {
         }
         .contentShape(RoundedRectangle(cornerRadius: state.expanded ? 27 : 18))
         .overlay(alignment: .trailing) {
-            if !state.expanded && !hasBanner && alerts.pendingCount > 0 {
-                Text("\(alerts.pendingCount)").font(.system(size: 8, weight: .bold)).foregroundStyle(.black)
-                    .frame(minWidth: 13, minHeight: 13).background(Color.accentColor, in: Circle()).padding(.trailing, geometry.hasNotch ? 12 : 3)
-                    .allowsHitTesting(false).accessibilityLabel("승인 대기 \(alerts.pendingCount)개")
+            if !state.expanded && !hasBanner && !active && alerts.storedCount > 0 {
+                AIAlertCountBadge(count: alerts.storedCount)
+                    .padding(.trailing, geometry.hasNotch ? 12 : 8)
             }
         }
         .animation(reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.84), value: state.expanded)
@@ -384,7 +389,7 @@ struct IslandView: View {
             state.holdOpenUntil = Date().addingTimeInterval(6)
             state.expanded = true
             if battery.alert != nil { state.showsAIAlerts = false; state.tab = .battery; battery.dismissAlert() }
-            else if alerts.pendingCount > 0 { state.showsAIAlerts = true }
+            else if alerts.storedCount > 0 { state.showsAIAlerts = true }
         } label: {
             Group {
                 if let alert = battery.alert {
@@ -392,15 +397,16 @@ struct IslandView: View {
                         CompactChargingAlert(device: alert.device, geometry: geometry, snapshot: snapshot).id(alert.id)
                     } else { compactAlert(alert.device, geometry: geometry) }
                 } else if let alert = alerts.banner {
-                    CompactAIAlert(event: alert, geometry: geometry, emphasized: alerts.isEmphasized)
+                    CompactAIAlert(event: alert, geometry: geometry, emphasized: alerts.isEmphasized, notificationCount: alerts.storedCount)
                 } else if active, let track = player.track {
-                    CompactPlayback(player: player, track: track, geometry: geometry)
+                    CompactPlayback(player: player, track: track, geometry: geometry, notificationCount: alerts.storedCount)
                 } else {
                     Color.clear.frame(width: geometry.idleWidth)
                 }
             }.frame(height: height).contentShape(Rectangle())
         }.buttonStyle(.plain)
             .accessibilityLabel(battery.alert == nil && alerts.banner != nil ? "\(alerts.banner!.provider.title), \(alerts.banner!.conversationLabel), \(alerts.banner!.openingAction)" : (geometry.hasNotch ? "노치 패널 펼치기" : "캡슐 패널 펼치기"))
+            .accessibilityValue(alerts.storedCount > 0 ? "보관된 알림 \(alerts.storedCount)개" : "")
             .transition(.opacity)
     }
 

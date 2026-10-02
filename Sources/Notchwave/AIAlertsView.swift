@@ -57,17 +57,28 @@ struct AIAlertsView: View {
     }
 }
 
+struct AIAlertCountBadge: View {
+    let count: Int
+    var body: some View {
+        Text("\(count)").font(.system(size: 8, weight: .bold, design: .rounded)).monospacedDigit()
+            .foregroundStyle(.black).padding(.horizontal, 3)
+            .frame(minWidth: 13, minHeight: 13).background(Color.accentColor, in: Capsule())
+            .fixedSize().allowsHitTesting(false).accessibilityLabel("보관된 알림 \(count)개")
+    }
+}
+
 struct CompactAIAlert: View {
     let event: AIEvent
     let geometry: IslandGeometry
     var emphasized = false
+    var notificationCount = 0
     var body: some View {
         Group {
             if geometry.hasNotch { notchContent }
             else { capsuleContent }
         }.foregroundStyle(.white)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(event.provider.title), \(event.conversationLabel), \(event.title), 클릭하여 \(event.openingAction)")
+            .accessibilityLabel("\(event.provider.title), \(event.conversationLabel), \(event.title), 보관된 알림 \(notificationCount)개, 클릭하여 \(event.openingAction)")
             .help(event.conversationLabel + " · " + event.openingAction)
     }
 
@@ -86,6 +97,7 @@ struct CompactAIAlert: View {
                 Text(event.conversationLabel).font(.system(size: 11, weight: .semibold))
                     .lineLimit(1).truncationMode(.tail)
                 Spacer(minLength: 0)
+                if notificationCount > 0 { AIAlertCountBadge(count: notificationCount) }
                 Image(systemName: "arrow.up.forward").font(.system(size: 9)).foregroundStyle(.white.opacity(0.6))
             }
         }
@@ -107,6 +119,7 @@ struct CompactAIAlert: View {
             Text(event.kind == .permission ? "승인 대기" : "응답 완료")
                 .font(.system(size: emphasized ? 13 : 11, weight: .semibold)).lineLimit(1)
                 .foregroundStyle(emphasized ? Color.accentColor : .white)
+            if notificationCount > 0 { AIAlertCountBadge(count: notificationCount) }
             Image(systemName: "arrow.up.forward").font(.system(size: emphasized ? 11 : 9)).foregroundStyle(.white.opacity(0.7))
         }.padding(.horizontal, 18)
     }
