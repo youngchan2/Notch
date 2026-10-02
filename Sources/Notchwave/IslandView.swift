@@ -266,7 +266,7 @@ struct IslandView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         let geometry = state.geometry
-        let active = player.track?.playing == true
+        let active = player.active
         let compactActive = active || alerts.storedCount > 0
         let hasBanner = battery.alert != nil || alerts.banner != nil
         let emphasized = battery.alert == nil && alerts.banner != nil && alerts.isEmphasized
@@ -383,7 +383,7 @@ struct IslandView: View {
 
     @ViewBuilder private func compactButton(height: CGFloat) -> some View {
         let geometry = state.geometry
-        let active = player.track?.playing == true
+        let active = player.active
         Button {
             if battery.alert == nil, let alert = alerts.banner { alerts.open(alert); return }
             state.holdOpenUntil = Date().addingTimeInterval(6)

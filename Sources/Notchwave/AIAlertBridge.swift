@@ -309,7 +309,7 @@ enum AIHookLink {
     @Published var claudeManualEntry = false
     let demo: Bool
     var bannerPaused = false
-    @Published private(set) var musicPlaying = false
+    @Published private(set) var musicVisible = false
     @Published private(set) var isEmphasized = false
     private var arrival = AIAlertArrival()
     private var timer: Timer?
@@ -320,11 +320,11 @@ enum AIHookLink {
     private var nextTitleRefresh = Date.distantPast
     private lazy var remote = RemoteClaudeMonitor(receive: { [weak self] event in
         guard let self else { return }
-        self.queue.receive(event, keepCodexVisible: !self.musicPlaying)
+        self.queue.receive(event, keepCodexVisible: !self.musicVisible)
         self.received.insert(.claude); self.refreshPresentation()
     }, status: { [weak self] host, status in self?.remoteStatus[host] = status })
     init(demo: Bool = false) { self.demo = demo }
-    var banner: AIEvent? { queue.banner ?? (musicPlaying ? nil : queue.idleCodexAlert) }
+    var banner: AIEvent? { queue.banner ?? (musicVisible ? nil : queue.idleCodexAlert) }
     var pendingCount: Int { queue.pendingCount }
     var storedCount: Int { queue.storedCount }
     var items: [AIEvent] { queue.items }
@@ -344,11 +344,11 @@ enum AIHookLink {
         let emphasized = arrival.update(banner, obscured: bannerPaused, now: now)
         if isEmphasized != emphasized { isEmphasized = emphasized }
     }
-    func updatePlayback(playing: Bool) {
-        guard musicPlaying != playing else { return }
-        musicPlaying = playing
-        // Once music takes over, old alerts should not reappear at the next pause.
-        if playing { queue.clearIdleCodexAlert() }
+    func updateMusicVisibility(visible: Bool) {
+        guard musicVisible != visible else { return }
+        musicVisible = visible
+        // Keep paused music visible too; hidden alerts must not reappear when Spotify closes.
+        if visible { queue.clearIdleCodexAlert() }
         refreshPresentation()
     }
     func refreshConfiguration() {
@@ -436,7 +436,7 @@ enum AIHookLink {
                 queue.updateConversation(metadata, session: event.session)
             }
             if !event.preview { received.insert(event.provider) }
-            queue.receive(event, now: now, keepCodexVisible: !musicPlaying)
+            queue.receive(event, now: now, keepCodexVisible: !musicVisible)
         }
         // Auto-generated names may arrive just after the completion notification.
         if now >= nextTitleRefresh {
@@ -457,7 +457,7 @@ enum AIHookLink {
             kind: permission ? .permission : .completed, project: "미리보기", tool: permission ? "파일 변경" : "",
             createdAt: Date(), targetBundleID: permission ? AIProvider.claude.bundleID : AIProvider.codex.bundleID, preview: true,
             conversationTitle: conversationTitle)
-        queue.receive(event, keepCodexVisible: !musicPlaying)
+        queue.receive(event, keepCodexVisible: !musicVisible)
         refreshPresentation()
     }
     func dismiss(_ event: AIEvent) { queue.dismiss(event.id); refreshPresentation() }

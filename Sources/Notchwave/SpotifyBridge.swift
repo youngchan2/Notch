@@ -22,6 +22,7 @@ import Carbon
     private var generation = 0
     private let cache = NSCache<NSString, NSImage>()
 
+    // A loaded Spotify track owns the music capsule even while playback is paused.
     var active: Bool { track != nil }
 
     func start() {

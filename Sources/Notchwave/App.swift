@@ -177,11 +177,11 @@ final class IslandPanel: NSPanel {
         guard let panel else { return }
         if state.hidden { panel.ignoresMouseEvents = true; return }
         let now = Date()
-        alerts.updatePlayback(playing: player.track?.playing == true)
+        alerts.updateMusicVisibility(visible: player.active)
         alerts.bannerPaused = battery.alert != nil
         alerts.refreshPresentation(now: now)
         let pointer = NSEvent.mouseLocation
-        let visibleRect = state.geometry.hitRect(expanded: state.expanded, active: player.track?.playing == true || alerts.storedCount > 0, tab: state.layoutTab,
+        let visibleRect = state.geometry.hitRect(expanded: state.expanded, active: player.active || alerts.storedCount > 0, tab: state.layoutTab,
             alert: battery.alert != nil || alerts.banner != nil, chargingAlert: battery.alert?.kind == .charging,
             aiAlertEmphasized: battery.alert == nil && alerts.banner != nil && alerts.isEmphasized)
         let hoverRect = state.expanded ? visibleRect : state.geometry.activationRect.union(visibleRect)
@@ -226,7 +226,7 @@ final class IslandPanel: NSPanel {
 
     private func dismissIfOutside(at point: NSPoint) {
         guard state.expanded, !state.hidden, !(calendar.draft != nil && state.tab == .calendar) else { return }
-        let rect = state.geometry.hitRect(expanded: true, active: player.track?.playing == true, tab: state.layoutTab, alert: battery.alert != nil || alerts.banner != nil)
+        let rect = state.geometry.hitRect(expanded: true, active: player.active, tab: state.layoutTab, alert: battery.alert != nil || alerts.banner != nil)
         if !rect.contains(point) { dismissPanel() }
     }
 
@@ -329,14 +329,14 @@ struct PreviewBoard: View {
             if alert == "completed" || alert == "permission" {
                 demoAlerts.preview(permission: alert == "permission", conversationTitle: "노치 알림 디자인과 긴 대화 제목 표시 개선 작업")
             } else if alert == "music-badge" || alert == "idle-badge" {
-                demoAlerts.updatePlayback(playing: true)
+                demoAlerts.updateMusicVisibility(visible: true)
                 demoAlerts.preview()
                 demoAlerts.preview(permission: true)
                 demoAlerts.poll(now: Date().addingTimeInterval(6))
                 demoAlerts.poll(now: Date().addingTimeInterval(12))
                 if alert == "idle-badge" {
                     player.setDemo(false)
-                    demoAlerts.updatePlayback(playing: false)
+                    demoAlerts.updateMusicVisibility(visible: false)
                 }
             } else if alert == "low" || alert == "charging" {
                 demoBattery.previewAlert(charging: alert == "charging")
