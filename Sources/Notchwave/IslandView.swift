@@ -346,7 +346,10 @@ struct IslandView: View {
                     Text("충전 중").font(.system(size: 10)).foregroundStyle(alert.device.color)
                     ChargingRing(device: alert.device, size: 22, snapshot: snapshot).id(alert.id)
                 } else {
-                    Text(alert.device.name + " \(alert.device.percent ?? 0)%").font(.system(size: 10, weight: .medium)).foregroundStyle(alert.device.color).lineLimit(1)
+                    HStack(spacing: 4) {
+                        BatteryDeviceLabel(device: alert.device, size: 10)
+                        Text("\(alert.device.percent ?? 0)%").font(.system(size: 10, weight: .medium))
+                    }.foregroundStyle(alert.device.color)
                 }
             } else if let alert = alerts.banner {
                 Label(alert.conversationLabel + (alert.kind == .permission ? " · 승인 대기" : " · 완료"), systemImage: alert.symbol)
@@ -423,22 +426,22 @@ struct IslandView: View {
                 Text("\(device.percent ?? 0)%").font(.system(size: 11, weight: .semibold)).foregroundStyle(device.color)
             } detail: {
                 HStack(spacing: 6) {
-                    Text(device.name).font(.system(size: 11, weight: .semibold)).lineLimit(1)
+                    BatteryDeviceLabel(device: device, size: 11, weight: .semibold)
                     Spacer(minLength: 4)
                     Text("배터리 부족").font(.system(size: 9)).foregroundStyle(device.color).fixedSize()
                 }
             }.foregroundStyle(.white)
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("배터리 부족, \(device.name), \(device.percent ?? 0)퍼센트")
+                .accessibilityLabel("배터리 부족, \(device.accessibleName), \(device.percent ?? 0)퍼센트")
         } else {
             HStack(spacing: 8) {
                 Image(systemName: device.symbol).font(.system(size: 16)).foregroundStyle(device.color)
-                Text(device.name).font(.system(size: 10, weight: .medium)).lineLimit(1)
+                BatteryDeviceLabel(device: device, size: 10)
                 Spacer(minLength: 4)
                 Text("\(device.percent ?? 0)%").font(.system(size: 11, weight: .semibold)).foregroundStyle(device.color)
                 BatteryGlyph(device: device)
             }.padding(.horizontal, 18).frame(width: geometry.alertWidth).foregroundStyle(.white)
-                .accessibilityLabel("배터리 부족, \(device.name), \(device.percent ?? 0)퍼센트")
+                .accessibilityLabel("배터리 부족, \(device.accessibleName), \(device.percent ?? 0)퍼센트")
         }
     }
 

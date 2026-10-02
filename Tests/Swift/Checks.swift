@@ -195,6 +195,24 @@ import SQLite3
     check(DeviceBattery.parse(raw, computerName: "Mac")?.percent == nil, "Invalid battery percentage is not shown or alerted")
     raw["Is Present"] = false
     check(DeviceBattery.parse(raw, computerName: "Mac") == nil, "Disconnected power sources are omitted")
+    var earbudRaw: [String: Any] = ["Name": "AirPods Pro", "Type": "Accessory Source", "Accessory Identifier": "test-pods",
+                                  "Accessory Category": "Headset", "Part Identifier": "Left", "Current Capacity": 100, "Max Capacity": 100, "Is Charging": true]
+    let leftPod = DeviceBattery.parse(earbudRaw, computerName: "Mac")!
+    earbudRaw["Part Identifier"] = "Right"; earbudRaw["Current Capacity"] = 53
+    let rightPod = DeviceBattery.parse(earbudRaw, computerName: "Mac")!
+    check(leftPod.symbol == "airpodpro.left" && leftPod.accessibleName == "AirPods Pro 왼쪽" && leftPod.percent == 100,
+          "A separate left AirPod retains its battery value and gets a left icon and label")
+    check(rightPod.symbol == "airpodpro.right" && rightPod.accessibleName == "AirPods Pro 오른쪽" && rightPod.percent == 53,
+          "A separate right AirPod retains its battery value and gets a right icon and label")
+    check(leftPod.id != rightPod.id && leftPod.charging && rightPod.charging, "Left and right charging rows keep independent identities")
+    earbudRaw["Part Identifier"] = "Combined"
+    earbudRaw["Combined Parts"] = [["Part Identifier": "Left", "Current Capacity": 100], ["Part Identifier": "Right", "Current Capacity": 100]]
+    let pairedPods = DeviceBattery.parse(earbudRaw, computerName: "Mac")!
+    check(pairedPods.side == nil && pairedPods.symbol == "airpodspro" && pairedPods.detail == "왼쪽 100% · 오른쪽 100%",
+          "Combined AirPods keep the paired icon and per-earbud details without an invented side")
+    earbudRaw["Part Identifier"] = "Case"; earbudRaw["Accessory Category"] = "Audio Battery Case"
+    let podCase = DeviceBattery.parse(earbudRaw, computerName: "Mac")!
+    check(podCase.side == nil && podCase.symbol == "airpodspro.chargingcase.wireless.fill", "An AirPods case keeps its case icon without an earbud badge")
     func batteryAt(_ percentage: Int, charging: Bool = false) -> DeviceBattery {
         DeviceBattery(id: "device", name: "Device", percent: percentage, charging: charging, internalBattery: false, category: "Headphone")
     }

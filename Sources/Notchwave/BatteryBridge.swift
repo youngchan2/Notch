@@ -3,6 +3,13 @@ import SwiftUI
 import IOKit.ps
 import Darwin
 
+enum EarbudSide: String {
+    case left, right
+    var label: String { self == .left ? "왼쪽" : "오른쪽" }
+    var badgeSymbol: String { self == .left ? "l.circle.fill" : "r.circle.fill" }
+    var sortOrder: Int { self == .left ? 0 : 1 }
+}
+
 struct DeviceBattery: Identifiable, Equatable {
     let id: String
     let name: String
@@ -11,6 +18,8 @@ struct DeviceBattery: Identifiable, Equatable {
     let internalBattery: Bool
     let category: String
     var detail = ""
+    var side: EarbudSide?
+    var accessibleName: String { side.map { "\(name) \($0.label)" } ?? name }
     var critical: Bool { (percent ?? 101) <= 20 }
     var color: Color {
         if critical { return .red }
@@ -21,8 +30,8 @@ struct DeviceBattery: Identifiable, Equatable {
         let name = name.lowercased(), category = category.lowercased()
         if internalBattery { return "laptopcomputer" }
         if category.contains("case") || name.contains("케이스") { return name.contains("airpods") ? "airpodspro.chargingcase.wireless.fill" : "case.fill" }
-        if name.contains("airpods pro") { return "airpodspro" }
-        if name.contains("airpods") { return "airpods" }
+        if name.contains("airpods pro") { return side.map { "airpodpro.\($0.rawValue)" } ?? "airpodspro" }
+        if name.contains("airpods") { return side.map { "airpod.\($0.rawValue)" } ?? "airpods" }
         if category.contains("trackpad") || name.contains("trackpad") { return "rectangle.and.hand.point.up.left.fill" }
         if category.contains("keyboard") || name.contains("keys") { return "keyboard.fill" }
         if category.contains("mouse") || name.contains("mouse") { return "computermouse.fill" }
@@ -48,7 +57,8 @@ struct DeviceBattery: Identifiable, Equatable {
         }.joined(separator: " · ")
         return DeviceBattery(id: id, name: isInternal ? computerName : rawName, percent: percent,
                              charging: (raw["Is Charging"] as? Bool ?? false) || parts.contains { $0["Is Charging"] as? Bool == true },
-                             internalBattery: isInternal, category: raw["Accessory Category"] as? String ?? "", detail: detail)
+                             internalBattery: isInternal, category: raw["Accessory Category"] as? String ?? "", detail: detail,
+                             side: isInternal ? nil : EarbudSide(rawValue: part.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()))
     }
 }
 
@@ -105,7 +115,11 @@ enum BatteryReader {
         var seen = Set<String>()
         return (devices.filter { seen.insert($0.id).inserted }.sorted {
             if $0.internalBattery != $1.internalBattery { return $0.internalBattery }
-            return $0.name.localizedStandardCompare($1.name) == .orderedAscending
+            let nameOrder = $0.name.localizedStandardCompare($1.name)
+            if nameOrder != .orderedSame { return nameOrder == .orderedAscending }
+            let leftOrder = $0.side?.sortOrder ?? 2, rightOrder = $1.side?.sortOrder ?? 2
+            if leftOrder != rightOrder { return leftOrder < rightOrder }
+            return $0.id.localizedStandardCompare($1.id) == .orderedAscending
         }, copy != nil)
     }
 }
@@ -177,6 +191,24 @@ enum BatteryReader {
     ]
 }
 
+struct BatteryDeviceLabel: View {
+    let device: DeviceBattery
+    var size: CGFloat = 13
+    var weight: Font.Weight = .medium
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(device.name).font(.system(size: size, weight: weight)).lineLimit(1)
+            if let side = device.side {
+                Image(systemName: side.badgeSymbol)
+                    .font(.system(size: size * 0.82, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.85)).fixedSize()
+            }
+        }.accessibilityElement(children: .ignore)
+            .accessibilityLabel(device.accessibleName)
+            .help(device.accessibleName)
+    }
+}
+
 struct ChargingRing: View {
     let device: DeviceBattery
     var size: CGFloat = 40
@@ -212,21 +244,21 @@ struct CompactChargingAlert: View {
                     ChargingRing(device: device, size: 24, snapshot: snapshot)
                 } detail: {
                     HStack(spacing: 6) {
-                        Text(device.name).font(.system(size: 11, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
+                        BatteryDeviceLabel(device: device, size: 11, weight: .semibold).foregroundStyle(.white)
                         Spacer(minLength: 4)
                         Label("충전 중", systemImage: "bolt.fill").font(.system(size: 9, weight: .semibold)).foregroundStyle(device.color).fixedSize()
                     }
                 }
             } else { capsuleContent }
         }.accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(device.name), 충전 중, \(device.percent.map { "\($0)퍼센트" } ?? "잔량 확인 중")")
+            .accessibilityLabel("\(device.accessibleName), 충전 중, \(device.percent.map { "\($0)퍼센트" } ?? "잔량 확인 중")")
     }
 
     private var capsuleContent: some View {
         HStack(spacing: 10) {
             Image(systemName: device.symbol).font(.system(size: 23, weight: .medium)).foregroundStyle(device.color)
             VStack(alignment: .leading, spacing: 3) {
-                Text(device.name).font(.system(size: 10, weight: .medium)).foregroundStyle(.white).lineLimit(1)
+                BatteryDeviceLabel(device: device, size: 10).foregroundStyle(.white)
                 Label("충전 중", systemImage: "bolt.fill").font(.system(size: 10, weight: .semibold)).foregroundStyle(device.color)
             }.frame(maxWidth: .infinity, alignment: .leading)
             ChargingRing(device: device, snapshot: snapshot)
@@ -273,7 +305,7 @@ struct BatteryView: View {
                                 Image(systemName: NSImage(systemSymbolName: device.symbol, accessibilityDescription: nil) == nil ? "headphones" : device.symbol)
                                     .font(.system(size: 21, weight: .medium)).frame(width: 32)
                                 VStack(alignment: .leading, spacing: 3) {
-                                    Text(device.name).font(.system(size: 13, weight: .medium)).lineLimit(1)
+                                    BatteryDeviceLabel(device: device)
                                     if !device.detail.isEmpty { Text(device.detail).font(.system(size: 9)).foregroundStyle(.white.opacity(0.5)) }
                                 }
                                 Spacer(minLength: 6)
