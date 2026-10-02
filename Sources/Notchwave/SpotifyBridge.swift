@@ -1,6 +1,5 @@
 import AppKit
 import SwiftUI
-import Carbon
 
 @MainActor final class SpotifyBridge: ObservableObject {
     @Published var track: Track?
@@ -13,6 +12,10 @@ import Carbon
     private let queue = DispatchQueue(label: "app.notchwave.spotify", qos: .utility)
     private var timer: Timer?
     private var notification: NSObjectProtocol?
+    private var workspaceObservers: [NSObjectProtocol] = []
+    private let runningProcess: () -> pid_t?
+    private let read: (pid_t, Bool) -> SpotifyReadResult
+    private var processIdentifier: pid_t?
     private var inFlight = false
     private var wantsPermission = false
     private var artworkTask: Task<Void, Never>?
@@ -25,16 +28,36 @@ import Carbon
     // A loaded Spotify track owns the music capsule even while playback is paused.
     var active: Bool { track != nil }
 
+    init(runningProcess: @escaping () -> pid_t? = {
+        NSRunningApplication.runningApplications(withBundleIdentifier: "com.spotify.client")
+            .first(where: { !$0.isTerminated })?.processIdentifier
+    }, read: @escaping (pid_t, Bool) -> SpotifyReadResult = {
+        SpotifyAutomation.read(processIdentifier: $0, prompt: $1)
+    }) {
+        self.runningProcess = runningProcess
+        self.read = read
+    }
+
     func start() {
+        guard timer == nil else { return }
         cache.countLimit = 24
         refresh()
-        timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: 2, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refresh() }
         }
-        timer?.tolerance = 0.25
+        timer.tolerance = 0.25
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
         notification = DistributedNotificationCenter.default().addObserver(
             forName: Notification.Name("com.spotify.client.PlaybackStateChanged"), object: nil, queue: .main
         ) { [weak self] _ in Task { @MainActor in self?.refresh() } }
+        for name in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification] {
+            workspaceObservers.append(NSWorkspace.shared.notificationCenter.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
+                guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+                      app.bundleIdentifier == "com.spotify.client" else { return }
+                Task { @MainActor in self?.refresh() }
+            })
+        }
     }
 
     func setDemo(_ enabled: Bool) {
@@ -60,53 +83,40 @@ import Carbon
 
     func refresh(prompt: Bool = false) {
         if prompt { wantsPermission = true }
-        guard !demo, !inFlight, !busy else { return }
-        guard !NSRunningApplication.runningApplications(withBundleIdentifier: "com.spotify.client").isEmpty else {
+        guard !demo else { return }
+        let currentProcess = runningProcess()
+        if currentProcess != processIdentifier {
+            processIdentifier = currentProcess
+            generation += 1
             track = nil
-            artwork = nil
-            currentArtworkURL = ""
+            loadArtwork("")
+            connection = currentProcess == nil ? .closed : .idle
+        }
+        // Observe termination even when the old process still has a read pending.
+        guard let currentProcess else {
             connection = .closed
             return
         }
+        guard !inFlight, !busy else { return }
         inFlight = true
         let shouldPrompt = wantsPermission
         wantsPermission = false
         let requestGeneration = generation
+        let read = self.read
         queue.async { [weak self] in
-            let target = NSAppleEventDescriptor(bundleIdentifier: "com.spotify.client")
-            let permission = AEDeterminePermissionToAutomateTarget(target.aeDesc, typeWildCard, typeWildCard, shouldPrompt)
-            if permission != noErr {
-                DispatchQueue.main.async {
-                    guard let self else { return }
-                    self.inFlight = false
-                    guard self.generation == requestGeneration else { return }
-                    self.track = nil
-                    self.artwork = nil
-                    self.currentArtworkURL = ""
-                    self.connection = permission == -1744 ? .needsPermission : .denied
-                }
-                return
-            }
-            let source = """
-            with timeout of 4 seconds
-                tell application id "com.spotify.client"
-                    if player state is stopped then return {}
-                    set t to current track
-                    return {id of t, name of t, artist of t, album of t, artwork url of t, duration of t, player position, player state as text, shuffling, repeating, shuffling enabled, repeating enabled}
-                end tell
-            end timeout
-            """
-            var error: NSDictionary?
-            let result = NSAppleScript(source: source)?.executeAndReturnError(&error)
-            let sample = result.flatMap { Track.decode($0) }
-            let errorCode = error?[NSAppleScript.errorNumber] as? Int
+            let result = read(currentProcess, shouldPrompt)
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.inFlight = false
-                guard self.generation == requestGeneration else { return }
-                self.track = sample
-                self.connection = errorCode == -1743 ? .denied : (errorCode != nil ? .unavailable : (sample == nil ? .idle : .ready))
-                self.loadArtwork(sample?.artworkURL ?? "")
+                guard !self.demo, self.generation == requestGeneration,
+                      self.runningProcess() == currentProcess else {
+                    self.refresh()
+                    return
+                }
+                self.track = result.track
+                self.connection = result.connection
+                self.loadArtwork(result.track?.artworkURL ?? "")
+                if self.wantsPermission { self.refresh() }
             }
         }
     }

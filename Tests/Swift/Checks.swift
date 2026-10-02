@@ -7,6 +7,7 @@ import SQLite3
         guard value() else { fatalError("FAILED: \(message)") }
         count += 1
     }
+    runSpotifyChecks { check($0, $1) }
     let date = Date(timeIntervalSince1970: 1000)
     let list = NSAppleEventDescriptor.list()
     let values: [NSAppleEventDescriptor] = [
