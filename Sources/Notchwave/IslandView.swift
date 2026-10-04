@@ -392,7 +392,6 @@ struct IslandView: View {
             state.holdOpenUntil = Date().addingTimeInterval(6)
             state.expanded = true
             if battery.alert != nil { state.showsAIAlerts = false; state.tab = .battery; battery.dismissAlert() }
-            else if alerts.storedCount > 0 { state.showsAIAlerts = true }
         } label: {
             Group {
                 if let alert = battery.alert {

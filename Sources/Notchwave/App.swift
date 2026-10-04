@@ -195,9 +195,6 @@ final class IslandPanel: NSPanel {
         switch hover.update(inside: hoverRect.contains(pointer), expanded: state.expanded,
                             pinned: state.pinned || (calendar.draft != nil && state.tab == .calendar) || (!state.showsAIAlerts && state.tab == .usage && alerts.claudeConnection != nil), holdOpenUntil: state.holdOpenUntil, now: now) {
         case .open:
-            if battery.alert == nil && (alerts.banner != nil || alerts.storedCount > 0) && calendar.draft == nil {
-                state.showsAIAlerts = true
-            }
             state.expanded = true
             panel.orderFrontRegardless()
             player.refresh()
