@@ -111,12 +111,13 @@ struct AIAlertQueue {
     private var waiting: [AIEvent] = []
     private var seen: [UUID] = []
     private var latest: [String: Date] = [:]
-    private var idleCodexAlertID: UUID?
+    private var readIDs: Set<UUID> = []
+    private(set) var inboxVisible = false
     var pendingCount: Int { items.filter { $0.kind == .permission }.count }
     var storedCount: Int { items.count }
-    var idleCodexAlert: AIEvent? { items.first { $0.id == idleCodexAlertID } }
+    var unreadCount: Int { items.filter { !readIDs.contains($0.id) }.count }
 
-    mutating func receive(_ event: AIEvent, now: Date = Date(), keepCodexVisible: Bool = false) {
+    mutating func receive(_ event: AIEvent, now: Date = Date()) {
         guard !seen.contains(event.id), event.createdAt > now.addingTimeInterval(-3600),
               event.createdAt < now.addingTimeInterval(60),
               event.createdAt >= (latest[event.sessionKey] ?? .distantPast) else { return }
@@ -140,19 +141,19 @@ struct AIAlertQueue {
             // Keep pending approvals ahead of the bounded response history.
             let pending = items.filter { $0.kind == .permission }
             items = Array(pending.prefix(50)) + Array(items.filter { $0.kind == .completed }.prefix(20))
-            if keepCodexVisible && event.provider == .codex { idleCodexAlertID = event.id }
             if event.kind == .permission {
                 if let current = banner { waiting.insert(current, at: 0) }
                 banner = event; expiresAt = now.addingTimeInterval(5)
             } else { waiting.append(event) }
         }
+        if inboxVisible { markAllRead() }
         tick(now: now)
     }
 
     mutating func tick(now: Date = Date(), paused: Bool = false) {
         if paused { expiresAt = now.addingTimeInterval(5); return }
-        // An unread Codex alert can occupy the otherwise empty capsule until acknowledged.
-        items.removeAll { $0.id != idleCodexAlertID && now.timeIntervalSince($0.createdAt) >= 3600 }
+        items.removeAll { now.timeIntervalSince($0.createdAt) >= 3600 }
+        readIDs.formIntersection(items.map(\.id))
         waiting.removeAll { now.timeIntervalSince($0.createdAt) >= 60 }
         if let current = banner, now >= expiresAt || now.timeIntervalSince(current.createdAt) >= 3600 { banner = nil }
         if banner == nil, !waiting.isEmpty {
@@ -162,7 +163,7 @@ struct AIAlertQueue {
     mutating func dismiss(_ id: UUID) {
         items.removeAll { $0.id == id }; waiting.removeAll { $0.id == id }
         if banner?.id == id { banner = nil }
-        if idleCodexAlertID == id { idleCodexAlertID = nil }
+        readIDs.remove(id)
     }
     mutating func updateConversation(_ metadata: CodexThreadMetadata, session: String) {
         func updated(_ event: AIEvent) -> AIEvent {
@@ -178,20 +179,31 @@ struct AIAlertQueue {
     mutating func acknowledge(_ id: UUID) {
         waiting.removeAll { $0.id == id }
         if banner?.id == id { banner = nil }
-        if idleCodexAlertID == id { idleCodexAlertID = nil }
+        if items.contains(where: { $0.id == id }) { readIDs.insert(id) }
     }
-    mutating func clearIdleCodexAlert() { idleCodexAlertID = nil }
+    mutating func setInboxVisible(_ visible: Bool) {
+        inboxVisible = visible
+        if visible { markAllRead() }
+    }
+    private mutating func markAllRead() {
+        // Viewing the inbox acknowledges presentation, not the pending work itself.
+        readIDs = Set(items.map(\.id))
+        waiting.removeAll()
+        banner = nil
+        expiresAt = .distantPast
+    }
     mutating func clearAll() {
         items.removeAll()
         waiting.removeAll()
         banner = nil
-        idleCodexAlertID = nil
+        readIDs.removeAll()
         expiresAt = .distantPast
         // Keep delivery history so polling cannot replay an already dismissed event.
     }
     mutating func remove(_ provider: AIProvider) {
         items.removeAll { $0.provider == provider }; waiting.removeAll { $0.provider == provider }
         if banner?.provider == provider { banner = nil }
+        readIDs.formIntersection(items.map(\.id))
     }
 }
 
@@ -309,7 +321,6 @@ enum AIHookLink {
     @Published var claudeManualEntry = false
     let demo: Bool
     var bannerPaused = false
-    @Published private(set) var musicVisible = false
     @Published private(set) var isEmphasized = false
     private var arrival = AIAlertArrival()
     private var timer: Timer?
@@ -320,13 +331,14 @@ enum AIHookLink {
     private var nextTitleRefresh = Date.distantPast
     private lazy var remote = RemoteClaudeMonitor(receive: { [weak self] event in
         guard let self else { return }
-        self.queue.receive(event, keepCodexVisible: !self.musicVisible)
+        self.queue.receive(event)
         self.received.insert(.claude); self.refreshPresentation()
     }, status: { [weak self] host, status in self?.remoteStatus[host] = status })
     init(demo: Bool = false) { self.demo = demo }
-    var banner: AIEvent? { queue.banner ?? (musicVisible ? nil : queue.idleCodexAlert) }
+    var banner: AIEvent? { queue.banner }
     var pendingCount: Int { queue.pendingCount }
     var storedCount: Int { queue.storedCount }
+    var unreadCount: Int { queue.unreadCount }
     var items: [AIEvent] { queue.items }
 
     func start() {
@@ -344,11 +356,9 @@ enum AIHookLink {
         let emphasized = arrival.update(banner, obscured: bannerPaused, now: now)
         if isEmphasized != emphasized { isEmphasized = emphasized }
     }
-    func updateMusicVisibility(visible: Bool) {
-        guard musicVisible != visible else { return }
-        musicVisible = visible
-        // Keep paused music visible too; hidden alerts must not reappear when Spotify closes.
-        if visible { queue.clearIdleCodexAlert() }
+    func setInboxVisible(_ visible: Bool) {
+        guard queue.inboxVisible != visible else { return }
+        queue.setInboxVisible(visible)
         refreshPresentation()
     }
     func refreshConfiguration() {
@@ -436,7 +446,7 @@ enum AIHookLink {
                 queue.updateConversation(metadata, session: event.session)
             }
             if !event.preview { received.insert(event.provider) }
-            queue.receive(event, now: now, keepCodexVisible: !musicVisible)
+            queue.receive(event, now: now)
         }
         // Auto-generated names may arrive just after the completion notification.
         if now >= nextTitleRefresh {
@@ -457,7 +467,7 @@ enum AIHookLink {
             kind: permission ? .permission : .completed, project: "미리보기", tool: permission ? "파일 변경" : "",
             createdAt: Date(), targetBundleID: permission ? AIProvider.claude.bundleID : AIProvider.codex.bundleID, preview: true,
             conversationTitle: conversationTitle)
-        queue.receive(event, keepCodexVisible: !musicVisible)
+        queue.receive(event)
         refreshPresentation()
     }
     func dismiss(_ event: AIEvent) { queue.dismiss(event.id); refreshPresentation() }

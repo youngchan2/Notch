@@ -42,13 +42,13 @@ func runCodexReadStateChecks(_ check: (Bool, String) -> Void) {
         let read = monitor.readEventIDs(in: [completed, other, approval], now: date.addingTimeInterval(2))
         check(read == [completed.id], "Reading one conversation dismisses only that completion")
         var queue = AIAlertQueue()
-        queue.receive(completed, now: date, keepCodexVisible: true)
+        queue.receive(completed, now: date)
         for id in read { queue.dismiss(id) }
-        check(queue.items.isEmpty && queue.banner == nil && queue.idleCodexAlert == nil, "Read completion disappears from history, banner, idle capsule, and stored badge")
+        check(queue.items.isEmpty && queue.banner == nil && queue.unreadCount == 0, "Read completion disappears from history, banner, and unread badge")
         queue.tick(now: date.addingTimeInterval(10))
         check(queue.banner == nil, "A read completion cannot reappear from the waiting queue")
         var pendingQueue = AIAlertQueue()
-        pendingQueue.receive(approval, now: date, keepCodexVisible: true)
+        pendingQueue.receive(approval, now: date)
         for id in read { pendingQueue.dismiss(id) }
         check(pendingQueue.pendingCount == 1, "Viewing a chat never approves or hides its pending permission request")
 

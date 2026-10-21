@@ -63,7 +63,7 @@ struct AIAlertCountBadge: View {
         Text("\(count)").font(.system(size: 8, weight: .bold, design: .rounded)).monospacedDigit()
             .foregroundStyle(.black).padding(.horizontal, 3)
             .frame(minWidth: 13, minHeight: 13).background(Color.accentColor, in: Capsule())
-            .fixedSize().allowsHitTesting(false).accessibilityLabel("보관된 알림 \(count)개")
+            .fixedSize().allowsHitTesting(false).accessibilityLabel("새 알림 \(count)개")
     }
 }
 
@@ -78,7 +78,7 @@ struct CompactAIAlert: View {
             else { capsuleContent }
         }.foregroundStyle(.white)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(event.provider.title), \(event.conversationLabel), \(event.title), 보관된 알림 \(notificationCount)개, 클릭하여 \(event.openingAction)")
+            .accessibilityLabel("\(event.provider.title), \(event.conversationLabel), \(event.title), 새 알림 \(notificationCount)개, 클릭하여 \(event.openingAction)")
             .help(event.conversationLabel + " · " + event.openingAction)
     }
 

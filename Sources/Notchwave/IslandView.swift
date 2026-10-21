@@ -267,7 +267,8 @@ struct IslandView: View {
     var body: some View {
         let geometry = state.geometry
         let active = player.active
-        let compactActive = active || alerts.storedCount > 0
+        let compactActive = active || alerts.unreadCount > 0
+        let inboxVisible = state.expanded && state.showsAIAlerts && !state.hidden
         let hasBanner = battery.alert != nil || alerts.banner != nil
         let emphasized = battery.alert == nil && alerts.banner != nil && alerts.isEmphasized
         let size = geometry.hitRect(expanded: state.expanded, active: compactActive, tab: state.layoutTab,
@@ -295,18 +296,22 @@ struct IslandView: View {
         }
         .contentShape(RoundedRectangle(cornerRadius: state.expanded ? 27 : 18))
         .overlay(alignment: .trailing) {
-            if !state.expanded && !hasBanner && !active && alerts.storedCount > 0 {
-                AIAlertCountBadge(count: alerts.storedCount)
+            if !state.expanded && !hasBanner && !active && alerts.unreadCount > 0 {
+                AIAlertCountBadge(count: alerts.unreadCount)
                     .padding(.trailing, geometry.hasNotch ? 12 : 8)
             }
         }
         .animation(reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.84), value: state.expanded)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: active)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: alerts.unreadCount)
         .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85), value: battery.alert?.id)
         .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85), value: alerts.banner?.id)
         .animation(reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.8), value: emphasized)
         .animation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.9), value: state.showsAIAlerts)
         .animation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.9), value: state.tab)
+        .onAppear { alerts.setInboxVisible(inboxVisible) }
+        .onChange(of: inboxVisible) { alerts.setInboxVisible($0) }
+        .onDisappear { alerts.setInboxVisible(false) }
         .opacity(state.hidden ? 0 : 1)
         .frame(width: geometry.windowFrame.width, height: geometry.windowFrame.height, alignment: .top)
         .preferredColorScheme(.dark)
@@ -399,16 +404,16 @@ struct IslandView: View {
                         CompactChargingAlert(device: alert.device, geometry: geometry, snapshot: snapshot).id(alert.id)
                     } else { compactAlert(alert.device, geometry: geometry) }
                 } else if let alert = alerts.banner {
-                    CompactAIAlert(event: alert, geometry: geometry, emphasized: alerts.isEmphasized, notificationCount: alerts.storedCount)
+                    CompactAIAlert(event: alert, geometry: geometry, emphasized: alerts.isEmphasized, notificationCount: alerts.unreadCount)
                 } else if active, let track = player.track {
-                    CompactPlayback(player: player, track: track, geometry: geometry, notificationCount: alerts.storedCount)
+                    CompactPlayback(player: player, track: track, geometry: geometry, notificationCount: alerts.unreadCount)
                 } else {
                     Color.clear.frame(width: geometry.idleWidth)
                 }
             }.frame(height: height).contentShape(Rectangle())
         }.buttonStyle(.plain)
             .accessibilityLabel(battery.alert == nil && alerts.banner != nil ? "\(alerts.banner!.provider.title), \(alerts.banner!.conversationLabel), \(alerts.banner!.openingAction)" : (geometry.hasNotch ? "노치 패널 펼치기" : "캡슐 패널 펼치기"))
-            .accessibilityValue(alerts.storedCount > 0 ? "보관된 알림 \(alerts.storedCount)개" : "")
+            .accessibilityValue(alerts.unreadCount > 0 ? "새 알림 \(alerts.unreadCount)개" : "")
             .transition(.opacity)
     }
 
